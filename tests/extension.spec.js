@@ -696,9 +696,11 @@ test.describe('HTML Generation', () => {
     await page.goto('about:blank');
     const code = extractForHtmlGen();
 
-    const results = await page.evaluate(([c, small, large]) => {
+    // generateThreadHTML is async (since the htmlSanitize option), so both
+    // results must be awaited before they leave the page.
+    const results = await page.evaluate(async ([c, small, large]) => {
       (0, eval)(c); // eslint-disable-line no-eval
-      return [generateThreadHTML(small), generateThreadHTML(large)];
+      return Promise.all([generateThreadHTML(small), generateThreadHTML(large)]);
     }, [code, makeThread(3), makeThread(12)]);
 
     expect(results[0]).not.toContain('<nav class="gme-toc">');
