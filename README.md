@@ -10,17 +10,6 @@
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 <!-- BADGES:END -->
 
-## Description
-
-A Manifest V3 Chrome extension that adds an **Export** button to Gmail's
-toolbar. Tick some threads, click it, and the extension downloads them as PDF,
-HTML, Markdown, JSON or EML, packed into a single ZIP or saved as separate
-files, with their attachments if you want them.
-
-It reads your mail through the Gmail API with a read-only scope, using an
-OAuth client you create in your own Google Cloud project. Nothing passes
-through a third-party server.
-
 ## Table of Contents
 
 - [Description](#description)
@@ -41,6 +30,17 @@ through a third-party server.
 - [Credits](#credits)
 - [Contributing](#contributing)
 - [License](#license)
+
+## Description
+
+A Manifest V3 Chrome extension that adds an **Export** button to Gmail's
+toolbar. Tick some threads, click it, and the extension downloads them as PDF,
+HTML, Markdown, JSON or EML, packed into a single ZIP or saved as separate
+files, with their attachments if you want them.
+
+It reads your mail through the Gmail API with a read-only scope, using an
+OAuth client you create in your own Google Cloud project. Nothing passes
+through a third-party server.
 
 ## Screenshots
 
