@@ -81,6 +81,12 @@ through a third-party server.
 
 ## Installation
 
+A ready-to-load build of each version is on the
+[Releases](https://github.com/geoffmyers/gmail-thread-exporter/releases/latest)
+page: unzip it and load that folder in step 3 instead of a clone. You still need
+the OAuth client from step 2, with its client ID in the unzipped
+`manifest.json`.
+
 ### 1. Clone the repository
 
 ```bash
