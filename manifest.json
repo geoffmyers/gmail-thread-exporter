@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Gmail Thread Exporter",
+  "version": "1.0.0",
+  "description": "Bulk export Gmail threads to PDF, HTML, Markdown, JSON, and EML formats",
+  "author": "Geoff Myers",
+  "homepage_url": "https://github.com/geoffmyers/gmail-thread-exporter",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwi2abuBNn6bLghnHdhEB33QQzUJilxlwzhSdouU9UnkkgE/SWHThobqByJtlurbUsYd/4g1g1ko00I7rIxhj5ieDqt3LP6oNKgF+xvlbOvWsgk4WK57r7NQcWSXdkcZP1jKbRE1zW7wq9KKABLhEg4mLUZp7mA0ctb/4VTTVHTwEKKiR1FbwzSNewSN+M2RE6v70A2oVISci4Hr+j57fIZgUgCR+oaW/1pxQ++Vb000/ceFO+mkrzUFvh+IwbdpCj+gN8okEtDXmt/vfH5gwd3Sn1+p/7SO5zKnOxjwQvOAeCn6ZzWkerjehCCeESt20X4BcyZci3HGRPlGupkZcLQIDAQAB",
+
+  "permissions": [
+    "identity",
+    "downloads",
+    "storage",
+    "offscreen",
+    "debugger",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://www.googleapis.com/*"
+  ],
+
+  "oauth2": {
+    "client_id": "634892303163-26o1dt2hoc51e06ajd82p81vet6th15r.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
+  },
+
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": [
+        "src/content/gmail-dom.js",
+        "src/content/export-modal.js",
+        "src/content/gmail-injector.js"
+      ],
+      "css": ["src/content/gmail-exporter.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+
+  "minimum_chrome_version": "109"
+}

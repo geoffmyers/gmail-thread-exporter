@@ -1,0 +1,4 @@
+node_modules/
+test-results/
+playwright-report/
+client_secret_*.json

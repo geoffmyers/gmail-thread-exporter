@@ -1,0 +1,258 @@
+/* ─── Toolbar Button ────────────────────────────────────────────────────────── */
+
+.gme-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: #fff;
+  color: #3c4043;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.gme-toolbar-btn:hover:not(:disabled) {
+  background: #f1f3f4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.gme-toolbar-btn:active:not(:disabled) {
+  background: #e8eaed;
+}
+
+.gme-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ─── Modal Backdrop ────────────────────────────────────────────────────────── */
+
+#gme-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+}
+
+/* ─── Modal ─────────────────────────────────────────────────────────────────── */
+
+#gme-modal {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
+  width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  color: #202124;
+}
+
+.gme-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.gme-modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #202124;
+}
+
+.gme-modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: #5f6368;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.gme-modal-close:hover {
+  color: #202124;
+}
+
+.gme-modal-body {
+  padding: 16px 20px;
+}
+
+.gme-thread-count {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: #5f6368;
+}
+
+.gme-thread-count strong {
+  color: #202124;
+}
+
+/* ─── Fieldsets ─────────────────────────────────────────────────────────────── */
+
+.gme-fieldset {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+}
+
+.gme-fieldset legend {
+  font-size: 12px;
+  font-weight: 500;
+  color: #5f6368;
+  padding: 0 6px;
+}
+
+.gme-checkbox-label,
+.gme-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gme-checkbox-label em,
+.gme-radio-label em {
+  font-style: normal;
+  color: #9aa0a6;
+  font-size: 12px;
+}
+
+.gme-checkbox-label input,
+.gme-radio-label input {
+  accent-color: #1a73e8;
+  margin: 0;
+}
+
+/* ─── Progress ──────────────────────────────────────────────────────────────── */
+
+.gme-progress-section {
+  margin-top: 14px;
+}
+
+.gme-progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: #e8eaed;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.gme-progress-bar {
+  height: 100%;
+  background: #1a73e8;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.gme-progress-label {
+  font-size: 13px;
+  color: #202124;
+  margin-top: 6px;
+}
+
+.gme-progress-stats {
+  font-size: 12px;
+  color: #5f6368;
+  margin-top: 2px;
+}
+
+.gme-error {
+  background: #fce8e6;
+  color: #c5221f;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* ─── Modal Footer ──────────────────────────────────────────────────────────── */
+
+.gme-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.gme-btn {
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s;
+}
+
+.gme-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.gme-btn-primary {
+  background: #1a73e8;
+  color: #fff;
+}
+
+.gme-btn-primary:hover:not(:disabled) {
+  background: #1765cc;
+}
+
+.gme-btn-secondary {
+  background: #fff;
+  color: #1a73e8;
+  border: 1px solid #dadce0;
+}
+
+.gme-btn-secondary:hover:not(:disabled) {
+  background: #f1f3f4;
+}
+
+/* ─── Toast Notification ────────────────────────────────────────────────────── */
+
+.gme-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  z-index: 9999999;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+
+.gme-toast-success {
+  background: #1e8e3e;
+}
+
+.gme-toast-warning {
+  background: #f9ab00;
+  color: #202124;
+}
+
+.gme-toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

@@ -1,0 +1,20 @@
+{
+  "name": "gmail-thread-exporter",
+  "version": "1.0.0",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "description": "Chrome extension to bulk export Gmail threads to PDF, HTML, Markdown, JSON, and EML",
+  "scripts": {
+    "build": "node build.js",
+    "clean": "rm -rf vendor",
+    "test": "npx playwright test --config=tests/playwright.config.js"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

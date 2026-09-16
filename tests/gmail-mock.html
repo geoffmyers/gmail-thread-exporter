@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Gmail Mock — Thread List</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #fff; }
+    table { width: 100%; border-collapse: collapse; }
+    tr.zA { border-bottom: 1px solid #e0e0e0; }
+    tr.zA td { padding: 8px 12px; }
+    [role="checkbox"] { cursor: pointer; display: inline-block; width: 18px; height: 18px;
+                        border: 2px solid #999; border-radius: 2px; text-align: center; line-height: 18px; }
+    [role="checkbox"][aria-checked="true"] { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+    [role="checkbox"][aria-checked="true"]::after { content: "✓"; font-size: 12px; }
+    .G-Ni.J-J5-Ji { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+                     border-bottom: 1px solid #e0e0e0; background: #f2f2f2; }
+    .toolbar-label { font-size: 13px; color: #5f6368; }
+  </style>
+</head>
+<body>
+  <!-- Gmail toolbar mock -->
+  <div class="G-Ni J-J5-Ji" id="mock-toolbar">
+    <span class="toolbar-label">Toolbar</span>
+  </div>
+
+  <!-- Gmail thread list mock -->
+  <div role="main">
+    <table>
+      <tbody>
+        <tr class="zA">
+          <td><div role="checkbox" aria-checked="false" tabindex="0"></div></td>
+          <td><span data-legacy-thread-id="thread-abc-001">Alice Smith</span></td>
+          <td>Re: Project Update</td>
+          <td>Jan 15</td>
+        </tr>
+        <tr class="zA">
+          <td><div role="checkbox" aria-checked="false" tabindex="0"></div></td>
+          <td><span data-legacy-thread-id="thread-abc-002">Bob Jones</span></td>
+          <td>Meeting Notes</td>
+          <td>Jan 14</td>
+        </tr>
+        <tr class="zA">
+          <td><div role="checkbox" aria-checked="false" tabindex="0"></div></td>
+          <td><span data-legacy-thread-id="thread-abc-003">Carol White</span></td>
+          <td>Invoice #1234</td>
+          <td>Jan 13</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // Toggle checkbox on click (simulates Gmail behavior)
+    document.querySelectorAll('[role="checkbox"]').forEach((cb) => {
+      cb.addEventListener('click', () => {
+        const checked = cb.getAttribute('aria-checked') === 'true';
+        cb.setAttribute('aria-checked', String(!checked));
+      });
+    });
+  </script>
+</body>
+</html>
