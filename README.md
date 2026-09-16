@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icons/icon-128.png" width="96" height="96" alt="Gmail Thread Exporter icon">
+  <img src="docs/icon.svg" width="96" height="96" alt="Gmail Thread Exporter icon">
 </p>
 
 # Gmail Thread Exporter
@@ -267,6 +267,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for more detail.
 | [JSZip](https://stuk.github.io/jszip/) | MIT or GPL-3.0 | ZIP archives |
 | [Turndown](https://github.com/mixmark-io/turndown) and [turndown-plugin-gfm](https://github.com/mixmark-io/turndown-plugin-gfm) | MIT | HTML to Markdown, including tables |
 | [Playwright](https://playwright.dev/) | Apache-2.0 | Tests |
+
+The icon, in the extension and here, is the [Font Awesome](https://fontawesome.com/)
+`envelope` glyph, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 Mail is read through the [Gmail API](https://developers.google.com/workspace/gmail/api).
 Gmail and Chrome are trademarks of Google LLC. This extension is an independent
