@@ -5,6 +5,28 @@ const fs = require('fs');
 
 const EXTENSION_PATH = path.resolve(__dirname, '..');
 
+/**
+ * The extension's service worker, however fast or slow Chromium starts it.
+ * Checking context.serviceWorkers() and then waiting for the 'serviceworker'
+ * event misses a worker that starts between the two calls, and a busy host
+ * can take longer than 10 s; both failed a publish (2026-09-17). Poll instead.
+ */
+async function extensionServiceWorker(context, timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const [worker] = context.serviceWorkers();
+    if (worker) return worker;
+    if (Date.now() > deadline) {
+      throw new Error(`extension service worker did not start within ${timeoutMs / 1000} s`);
+    }
+    try {
+      return await context.waitForEvent('serviceworker', { timeout: 1000 });
+    } catch {
+      // not yet: loop and look again
+    }
+  }
+}
+
 // ─── Extension Structure ────────────────────────────────────────────────────
 
 test.describe('Extension Structure', () => {
@@ -26,7 +48,11 @@ test.describe('Extension Structure', () => {
     expect(manifest.permissions).toContain('storage');
     expect(manifest.permissions).toContain('offscreen');
     expect(manifest.permissions).toContain('debugger');
-    expect(manifest.permissions).toContain('activeTab');
+    // activeTab is deliberately absent: host_permissions already grants
+    // https://mail.google.com/* permanently, so activeTab's per-click grant
+    // is redundant (chrome.tabs.sendMessage works from host_permissions
+    // alone, with no user gesture required).
+    expect(manifest.permissions).not.toContain('activeTab');
     expect(manifest.host_permissions).toContain('https://mail.google.com/*');
     expect(manifest.host_permissions).toContain('https://www.googleapis.com/*');
     expect(manifest.oauth2).toBeDefined();
@@ -549,6 +575,82 @@ test.describe('Helper Function Unit Tests', () => {
     expect(result.datetime).toContain('2026-01-15');
   });
 
+  test('resolveFilenameTemplate falls back instead of throwing on a malformed thread', async ({ page }) => {
+    await page.goto('about:blank');
+    const result = await runInBrowser(page, extractHelpers(), `function() {
+      var caught = [];
+      function tryIt(label, fn) {
+        try {
+          return { label: label, value: fn(), threw: false };
+        } catch (err) {
+          caught.push(label);
+          return { label: label, value: null, threw: true };
+        }
+      }
+      return {
+        noMessages: tryIt('noMessages', function() {
+          return resolveFilenameTemplate('{subject}', { id: 'thread-empty', messages: [] });
+        }),
+        missingPayload: tryIt('missingPayload', function() {
+          return resolveFilenameTemplate('{subject}', { id: 'thread-nopayload', messages: [{}] });
+        }),
+        missingHeaders: tryIt('missingHeaders', function() {
+          // payload present but its headers array missing entirely — a
+          // different shape of malformed data than missingPayload above:
+          // resolveFilenameTemplate takes its normal path (headers defaults
+          // to []) rather than the thread/message-id fallback, and every
+          // token resolves to its own "nothing found" default instead of
+          // throwing on an undefined headers.find(...).
+          return resolveFilenameTemplate('{subject}', { id: 'thread-noheaders', messages: [{ payload: {} }] });
+        }),
+        nullThread: tryIt('nullThread', function() {
+          return resolveFilenameTemplate('{subject}', null);
+        }),
+        undefinedThread: tryIt('undefinedThread', function() {
+          return resolveFilenameTemplate('{subject}', undefined);
+        }),
+        emlFallbackUsesMessageId: tryIt('emlFallbackUsesMessageId', function() {
+          // messages exist but the FIRST has no payload — per-message (EML)
+          // resolution for index 1 should still prefer that message's own id
+          // over the thread id.
+          var thread = { id: 'thread-mixed', messages: [{}, { id: 'msg-2' }] };
+          return resolveFilenameTemplate('{subject}', thread, 1);
+        }),
+        caught: caught,
+      };
+    }`);
+
+    // None of these should have thrown — that used to abort the whole export.
+    expect(result.caught).toEqual([]);
+
+    expect(result.noMessages.value).toBe('thread-empty');
+    expect(result.missingPayload.value).toBe('thread-nopayload');
+    expect(result.missingHeaders.value).toBe('No Subject');
+    expect(result.nullThread.value).toBe('untitled');
+    expect(result.undefinedThread.value).toBe('untitled');
+    expect(result.emlFallbackUsesMessageId.value).toBe('msg-2');
+  });
+
+  test('dedupeFolderName leaves the first use bare and suffixes collisions', async ({ page }) => {
+    await page.goto('about:blank');
+    const result = await runInBrowser(page, extractHelpers(), `function() {
+      var used = new Map();
+      return {
+        first: dedupeFolderName(used, '2026-01-10 - Alice Smith - Update'),
+        second: dedupeFolderName(used, '2026-01-10 - Alice Smith - Update'),
+        third: dedupeFolderName(used, '2026-01-10 - Alice Smith - Update'),
+        other: dedupeFolderName(used, '2026-01-11 - Bob Jones - Meeting'),
+        otherAgain: dedupeFolderName(used, '2026-01-11 - Bob Jones - Meeting'),
+      };
+    }`);
+
+    expect(result.first).toBe('2026-01-10 - Alice Smith - Update');
+    expect(result.second).toBe('2026-01-10 - Alice Smith - Update (2)');
+    expect(result.third).toBe('2026-01-10 - Alice Smith - Update (3)');
+    expect(result.other).toBe('2026-01-11 - Bob Jones - Meeting');
+    expect(result.otherAgain).toBe('2026-01-11 - Bob Jones - Meeting (2)');
+  });
+
   test('ExportProgress calculates percent, label, and time estimates', async ({ page }) => {
     await page.goto('about:blank');
     const result = await runInBrowser(page, extractExportProgress(), `function() {
@@ -588,6 +690,137 @@ test.describe('Helper Function Unit Tests', () => {
     expect(result.short).toBe('30s');
     expect(result.exactMinute).toBe('1m');
     expect(result.longTime).toBe('3m');
+  });
+});
+
+// ─── Offscreen HTML Sanitization Tests ──────────────────────────────────────
+//
+// sanitizeHtmlFragment() is the real function the offscreen document's
+// 'sanitize-html' handler calls on every message body before it is embedded
+// in the generated HTML/PDF archive (src/offscreen/offscreen.js). It has no
+// chrome.* dependency, so — like the section markers used for
+// service-worker.js's helpers above — the code between its own
+// '// ─── HTML Sanitization' and the following '// ─── ZIP Helpers' comment
+// can be sliced out and evaluated directly, exercising the real function
+// against a hostile fixture instead of a reimplementation.
+
+test.describe('Offscreen HTML Sanitization', () => {
+  const offscreenCode = fs.readFileSync(
+    path.join(EXTENSION_PATH, 'src/offscreen/offscreen.js'),
+    'utf-8'
+  );
+
+  function extractSanitizer() {
+    const start = offscreenCode.indexOf('// ─── HTML Sanitization');
+    const end = offscreenCode.indexOf('// ─── ZIP Helpers');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return offscreenCode.substring(start, end);
+  }
+
+  async function runInBrowser(page, helperCode, testScript) {
+    return page.evaluate(([code, script]) => {
+      // eslint-disable-next-line no-eval -- intentional: loading own source for testing
+      (0, eval)(code);
+      // eslint-disable-next-line no-eval
+      return (0, eval)('(' + script + ')()');
+    }, [helperCode, testScript]);
+  }
+
+  test('sanitizeHtmlFragment strips scripts, embeds, event handlers and dangerous URL schemes', async ({ page }) => {
+    await page.goto('about:blank');
+
+    // A hostile message body: an inline handler, javascript:/vbscript:/
+    // data:text/html URLs (one whitespace-obfuscated), a real
+    // <script>/<object>/<embed>/<iframe>/<noscript>, and a srcdoc — plus
+    // harmless content and markup that must survive untouched.
+    const hostileHtml = `
+      <p onclick="window.__clicked = true;">Hi <strong>there</strong></p>
+      <script>window.__scriptRan = true;</script>
+      <a href="javascript:alert(1)" id="jslink">click</a>
+      <a href="  JaVaScRiPt:alert(2)" id="jslink2">click2</a>
+      <a href="vbscript:msgbox(1)" id="vbslink">click3</a>
+      <a href="data:text/html,<script>alert(1)</script>" id="datalink">click4</a>
+      <img src="https://example.com/real.png" alt="a real image">
+      <iframe src="https://evil.example/frame"></iframe>
+      <object data="https://evil.example/obj"></object>
+      <embed src="https://evil.example/embed">
+      <iframe srcdoc="<img src=x onerror=alert(1)>"></iframe>
+      <form action="javascript:alert(3)"><button formaction="javascript:alert(4)">go</button></form>
+      <noscript><img src="x" onerror="window.__noscriptRan = true;"></noscript>
+      <p>Some real, harmless content that should survive.</p>
+    `;
+
+    const result = await runInBrowser(page, extractSanitizer(), `function() {
+      return { html: sanitizeHtmlFragment(${JSON.stringify(hostileHtml)}) };
+    }`);
+
+    const html = result.html;
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toMatch(/<noscript/i);
+    expect(html).not.toMatch(/<iframe/i);
+    expect(html).not.toMatch(/<object/i);
+    expect(html).not.toMatch(/<embed/i);
+    expect(html).not.toMatch(/\son\w+\s*=/i); // no on* attribute anywhere
+    expect(html).not.toMatch(/javascript:/i);
+    expect(html).not.toMatch(/vbscript:/i);
+    expect(html).not.toMatch(/data:text\/html/i);
+    expect(html).not.toMatch(/srcdoc/i);
+    expect(html).not.toMatch(/evil\.example/i); // the hostile origin appears nowhere
+
+    // Harmless content and markup survive.
+    expect(html).toContain('Hi');
+    expect(html).toContain('<strong>there</strong>');
+    expect(html).toContain('https://example.com/real.png');
+    expect(html).toContain('Some real, harmless content that should survive.');
+
+    // Reparse the sanitizer's own output the way the offscreen document's
+    // caller eventually will — a raw substring match can't tell "present as
+    // inert text" from "present as markup that could still run".
+    const injectionSurvived = await page.evaluate((htmlText) => {
+      const reparsed = new DOMParser().parseFromString(htmlText, 'text/html');
+      return {
+        scripts: reparsed.querySelectorAll('script').length,
+        onclickHandlers: reparsed.querySelectorAll('[onclick]').length,
+        iframes: reparsed.querySelectorAll('iframe').length,
+      };
+    }, html);
+    expect(injectionSurvived.scripts).toBe(0);
+    expect(injectionSurvived.onclickHandlers).toBe(0);
+    expect(injectionSurvived.iframes).toBe(0);
+  });
+
+  test('sanitizeHtmlFragment is a no-op on already-clean HTML', async ({ page }) => {
+    await page.goto('about:blank');
+
+    const cleanHtml = '<p>Hello <strong>world</strong>. Visit <a href="https://example.com/">example.com</a>.</p>';
+    const result = await runInBrowser(page, extractSanitizer(), `function() {
+      return { html: sanitizeHtmlFragment(${JSON.stringify(cleanHtml)}) };
+    }`);
+
+    expect(result.html).toContain('Hello');
+    expect(result.html).toContain('<strong>world</strong>');
+    expect(result.html).toContain('href="https://example.com/"');
+  });
+
+  test('sanitizeHtmlFragment handles empty and non-string input without throwing', async ({ page }) => {
+    await page.goto('about:blank');
+
+    const result = await runInBrowser(page, extractSanitizer(), `function() {
+      var out = {};
+      try {
+        out.empty = sanitizeHtmlFragment('');
+        out.undef = sanitizeHtmlFragment(undefined);
+        out.threw = false;
+      } catch (err) {
+        out.threw = true;
+      }
+      return out;
+    }`);
+
+    expect(result.threw).toBe(false);
+    expect(result.empty).toBe('');
+    expect(result.undef).toBe('');
   });
 });
 
@@ -936,12 +1169,7 @@ test.describe('Extension Loading in Browser', () => {
       ],
     });
 
-    let serviceWorker;
-    if (context.serviceWorkers().length > 0) {
-      serviceWorker = context.serviceWorkers()[0];
-    } else {
-      serviceWorker = await context.waitForEvent('serviceworker', { timeout: 10000 });
-    }
+    const serviceWorker = await extensionServiceWorker(context);
     extensionId = serviceWorker.url().split('/')[2];
   });
 
@@ -982,6 +1210,20 @@ test.describe('Extension Loading in Browser', () => {
     await expect(optionsPage.locator('#opt-pretty-json')).toBeVisible();
     await expect(optionsPage.locator('#btn-save')).toBeVisible();
     await expect(optionsPage.locator('#btn-reset')).toBeVisible();
+
+    await optionsPage.close();
+  });
+
+  test('options page shows a GitHub source link', async () => {
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/options/options.html`);
+
+    const link = optionsPage.locator('a[href="https://github.com/geoffmyers/gmail-thread-exporter"]');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+    await expect(link).toContainText('View source on GitHub');
+    expect(await link.locator('svg').count()).toBe(1);
 
     await optionsPage.close();
   });
@@ -1082,12 +1324,7 @@ test.describe('Gmail DOM Simulation', () => {
       ],
     });
 
-    let serviceWorker;
-    if (context.serviceWorkers().length > 0) {
-      serviceWorker = context.serviceWorkers()[0];
-    } else {
-      serviceWorker = await context.waitForEvent('serviceworker', { timeout: 10000 });
-    }
+    const serviceWorker = await extensionServiceWorker(context);
     extensionId = serviceWorker.url().split('/')[2];
   });
 
@@ -1247,6 +1484,62 @@ test.describe('Gmail DOM Simulation', () => {
     const countText = await page.locator('.gme-thread-count').textContent();
     expect(countText).toContain('5');
     expect(countText).toContain('threads');
+    await page.close();
+  });
+
+  test('export modal footer shows a GitHub source link', async () => {
+    const page = await setupMockPageWithChrome();
+    await page.evaluate(() => ExportModal.show(3));
+    await page.waitForSelector('#gme-modal', { timeout: 3000 });
+
+    const link = page.locator('a[href="https://github.com/geoffmyers/gmail-thread-exporter"]');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+    await expect(link).toContainText('View source on GitHub');
+    expect(await link.locator('svg').count()).toBe(1);
+    await page.close();
+  });
+
+  test('exporting 50+ threads asks for confirmation before starting', async () => {
+    const page = await setupMockPageWithChrome();
+    await page.evaluate(() => ExportModal.show(75));
+    await page.waitForSelector('#gme-modal', { timeout: 3000 });
+
+    let dialogMessage = null;
+    page.once('dialog', async (dialog) => {
+      dialogMessage = dialog.message();
+      await dialog.dismiss();
+    });
+
+    await page.click('#gme-btn-export');
+    await page.waitForTimeout(200); // let the dialog round-trip land
+
+    expect(dialogMessage).not.toBeNull();
+    expect(dialogMessage).toContain('75 threads');
+
+    // Dismissing it must not start the export — the button stays in its
+    // normal state rather than switching to "Exporting...".
+    expect(await page.locator('#gme-btn-export').textContent()).toContain('Export');
+    await expect(page.locator('#gme-btn-export')).not.toBeDisabled();
+    await page.close();
+  });
+
+  test('exporting fewer than 50 threads skips the confirmation', async () => {
+    const page = await setupMockPageWithChrome();
+    await page.evaluate(() => ExportModal.show(5));
+    await page.waitForSelector('#gme-modal', { timeout: 3000 });
+
+    let dialogFired = false;
+    page.once('dialog', async (dialog) => {
+      dialogFired = true;
+      await dialog.dismiss();
+    });
+
+    await page.click('#gme-btn-export');
+    await page.waitForTimeout(200);
+
+    expect(dialogFired).toBe(false);
     await page.close();
   });
 

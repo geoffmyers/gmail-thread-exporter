@@ -41,32 +41,7 @@ chrome.runtime.onConnect.addListener((port) => {
       }
 
       if (msg.type === 'sanitize-html') {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(msg.html || '', 'text/html');
-        // Remove dangerous elements
-        for (const tag of ['script', 'object', 'embed', 'iframe']) {
-          for (const el of doc.querySelectorAll(tag)) {
-            el.remove();
-          }
-        }
-        // Remove inline event handlers (onclick, onload, etc.)
-        for (const el of doc.querySelectorAll('*')) {
-          for (const attr of [...el.attributes]) {
-            if (attr.name.toLowerCase().startsWith('on')) {
-              el.removeAttribute(attr.name);
-            }
-          }
-        }
-        // Remove javascript: href/src attributes
-        for (const el of doc.querySelectorAll('[href],[src]')) {
-          for (const attrName of ['href', 'src']) {
-            const val = (el.getAttribute(attrName) || '').toLowerCase().trimStart();
-            if (val.startsWith('javascript:')) {
-              el.removeAttribute(attrName);
-            }
-          }
-        }
-        port.postMessage({ id: msg.id, html: doc.body.innerHTML });
+        port.postMessage({ id: msg.id, html: sanitizeHtmlFragment(msg.html || '') });
         return;
       }
 
@@ -112,6 +87,60 @@ chrome.runtime.onConnect.addListener((port) => {
     }
   });
 });
+
+// ─── HTML Sanitization ──────────────────────────────────────────────────────
+//
+// Runs on each message body before it is embedded in the generated HTML/PDF
+// archive. This sanitizes a fragment (doc.body.innerHTML back out), not a
+// full document — there is no page-supplied <base>, meta refresh or
+// top-level <html>/<head> to worry about here the way webpage-archiver's
+// serializeHtml() has to — but a message body can still carry an inline
+// handler, a javascript:/vbscript:/data:text/html URL (some obfuscated with
+// whitespace), or the elements those rely on (script, object, embed,
+// iframe). A standalone function (rather than inline in the message
+// handler above) so tests/extension.spec.js can extract and call the real
+// function instead of a reimplementation.
+
+const SANITIZE_REMOVE_SELECTOR = ['script', 'object', 'embed', 'iframe', 'noscript'].join(', ');
+
+// Attributes that can carry a javascript:/vbscript:/data:text/html URL.
+const SANITIZE_URL_ATTRS = ['href', 'src', 'action', 'formaction', 'xlink:href'];
+
+function isDangerousHtmlUrl(value) {
+  if (!value) return false;
+  // DOM attribute values are already entity-decoded, so this only has to
+  // cope with whitespace/control-character obfuscation of the scheme
+  // (e.g. "java\tscript:").
+  const normalized = String(value).replace(/[\x00-\x20]+/g, '').toLowerCase();
+  return /^(javascript|vbscript):/.test(normalized) || /^data:text\/html/.test(normalized);
+}
+
+function sanitizeHtmlFragment(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html || '', 'text/html');
+
+  // Remove elements that can run code outright.
+  for (const el of doc.querySelectorAll(SANITIZE_REMOVE_SELECTOR)) {
+    el.remove();
+  }
+
+  for (const el of doc.querySelectorAll('*')) {
+    // Snapshot the attribute list first: removeAttribute() during iteration
+    // over the live NamedNodeMap skips entries as indices shift.
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on')) {
+        el.removeAttribute(attr.name);
+      } else if (name === 'srcdoc') {
+        el.removeAttribute(attr.name);
+      } else if (SANITIZE_URL_ATTRS.includes(name) && isDangerousHtmlUrl(attr.value)) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  }
+
+  return doc.body.innerHTML;
+}
 
 // ─── ZIP Helpers ──────────────────────────────────────────────────────────────
 

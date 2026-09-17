@@ -183,10 +183,35 @@
 
 .gme-modal-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 8px;
   padding: 12px 20px;
   border-top: 1px solid #e0e0e0;
+}
+
+.gme-modal-footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.gme-gh-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5f6368;
+  text-decoration: none;
+  font-size: 12px;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+}
+
+.gme-gh-link:hover,
+.gme-gh-link:focus-visible {
+  color: #1a73e8;
+}
+
+.gme-gh-link svg {
+  flex-shrink: 0;
 }
 
 .gme-btn {

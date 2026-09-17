@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Gmail Thread Exporter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bulk export Gmail threads to PDF, HTML, Markdown, JSON, and EML formats",
   "author": "Geoff Myers",
   "homepage_url": "https://github.com/geoffmyers/gmail-thread-exporter",
@@ -12,8 +12,7 @@
     "downloads",
     "storage",
     "offscreen",
-    "debugger",
-    "activeTab"
+    "debugger"
   ],
   "host_permissions": [
     "https://mail.google.com/*",

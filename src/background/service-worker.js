@@ -214,8 +214,23 @@ function parseEmailAddress(fromHeader) {
 }
 
 function resolveFilenameTemplate(template, thread, messageIndex) {
-  const firstMsg = thread.messages[0];
-  const headers = firstMsg.payload.headers;
+  const msgList = thread?.messages || [];
+  const firstMsg = msgList[0];
+
+  if (!firstMsg || !firstMsg.payload) {
+    // A malformed or partially-fetched thread has no header data to build a
+    // name from. Fall back to something stable — the specific message's id
+    // if we were resolving a per-message (EML) name, else the thread id —
+    // rather than throwing, which used to abort the entire export over one
+    // odd thread.
+    const fallbackId =
+      (typeof messageIndex === 'number' && msgList[messageIndex]?.id) ||
+      thread?.id ||
+      'untitled';
+    return sanitizeFilename(String(fallbackId));
+  }
+
+  const headers = firstMsg.payload.headers || [];
   const dateStr = getHeader(headers, 'Date');
   const subject = getHeader(headers, 'Subject') || 'No Subject';
   const from = parseEmailAddress(getHeader(headers, 'From'));
@@ -242,7 +257,19 @@ function resolveFilenameTemplate(template, thread, messageIndex) {
     .replace(/\{recipient_domain\}/g, to.email.split('@')[1] || '')
     .replace(/\{subject\}/g, sanitizeFilename(subject))
     .replace(/\{n\}/g, messageIndex != null ? String(messageIndex + 1).padStart(2, '0') : '')
-    .replace(/\{thread_id\}/g, thread.id);
+    .replace(/\{thread_id\}/g, thread?.id || '');
+}
+
+// Two threads can resolve to the same basename (e.g. two automated
+// notifications on the same date from the same sender with the same
+// subject) — `usedBasenames` tracks how many threads in this export have
+// already used each name, so the second and later ones get a " (2)", " (3)"
+// … suffix instead of overwriting the first one's files inside the ZIP.
+// Mutates `usedBasenames`.
+function dedupeFolderName(usedBasenames, basename) {
+  const priorUses = usedBasenames.get(basename) || 0;
+  usedBasenames.set(basename, priorUses + 1);
+  return priorUses === 0 ? basename : `${basename} (${priorUses + 1})`;
 }
 
 // ─── HTML Generation — Per Thread ─────────────────────────────────────────────
@@ -741,20 +768,36 @@ async function exportThreads({ threadIds, formats, bundle, attachmentMode, tabId
   const sanitizeBody = settings.htmlSanitize ? sanitizeHtmlBody : null;
 
   // Step 3: Generate per-thread files
+  const usedBasenames = new Map(); // basename → how many threads have used it so far
   for (const thread of allThreads) {
-    const basename = resolveFilenameTemplate(settings.filenameTemplate, thread);
-    const folder = basename;
+    let basename;
+    try {
+      basename = resolveFilenameTemplate(settings.filenameTemplate, thread);
+    } catch (err) {
+      // Filename resolution is the one per-thread step that used to run
+      // outside any try/catch: one odd thread (missing messages/payload/
+      // headers) would reject the whole exportThreads() promise and nothing
+      // would download. Record it like every other per-thread failure and
+      // move on to the rest of the export instead.
+      results.push({
+        label: `Thread ${thread?.id || '(unknown)'} — filename resolution failed: ${err.message}`,
+        success: false,
+      });
+      continue;
+    }
+
+    const folder = dedupeFolderName(usedBasenames, basename);
 
     // HTML
     if (formats.html) {
       try {
         const html = await generateThreadHTML(thread, { sanitizeBody });
         files.push({
-          filename: `${folder}/${basename}.html`,
+          filename: `${folder}/${folder}.html`,
           data: html,
           type: 'text',
         });
-        results.push({ label: `HTML \u2014 ${folder}/${basename}.html`, success: true });
+        results.push({ label: `HTML \u2014 ${folder}/${folder}.html`, success: true });
       } catch (err) {
         results.push({ label: `HTML \u2014 ${folder}: ${err.message}`, success: false });
       }
@@ -765,11 +808,11 @@ async function exportThreads({ threadIds, formats, bundle, attachmentMode, tabId
       try {
         const pdfBase64 = await generateThreadPDF(thread, { sanitizeBody });
         files.push({
-          filename: `${folder}/${basename}.pdf`,
+          filename: `${folder}/${folder}.pdf`,
           data: pdfBase64,
           type: 'base64',
         });
-        results.push({ label: `PDF \u2014 ${folder}/${basename}.pdf`, success: true });
+        results.push({ label: `PDF \u2014 ${folder}/${folder}.pdf`, success: true });
       } catch (err) {
         results.push({ label: `PDF \u2014 ${folder}: ${err.message}`, success: false });
       }
@@ -780,11 +823,11 @@ async function exportThreads({ threadIds, formats, bundle, attachmentMode, tabId
       try {
         const md = await generateThreadMarkdown(thread);
         files.push({
-          filename: `${folder}/${basename}.md`,
+          filename: `${folder}/${folder}.md`,
           data: md,
           type: 'text',
         });
-        results.push({ label: `Markdown \u2014 ${folder}/${basename}.md`, success: true });
+        results.push({ label: `Markdown \u2014 ${folder}/${folder}.md`, success: true });
       } catch (err) {
         results.push({ label: `Markdown \u2014 ${folder}: ${err.message}`, success: false });
       }

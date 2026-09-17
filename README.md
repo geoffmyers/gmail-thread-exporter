@@ -43,6 +43,17 @@ It reads your mail through the Gmail API with a read-only scope, using an
 OAuth client you create in your own Google Cloud project. Nothing passes
 through a third-party server.
 
+> **This extension is not on the Chrome Web Store.** You load it unpacked (or
+> from a [Releases](https://github.com/geoffmyers/gmail-thread-exporter/releases/latest)
+> zip) from `chrome://extensions`. `manifest.json` commits a `key`, which
+> pins the extension's ID — and therefore its OAuth redirect URL — to the same
+> value on every machine that loads it unpacked. The committed
+> `oauth2.client_id` is the author's own Google Cloud OAuth client, scoped to
+> that one pinned ID; it will not authorise anyone else's Google account. To
+> use your own OAuth client, follow [step 2](#2-create-a-google-cloud-oauth-client)
+> below: replace `oauth2.client_id` with your own, or remove `key` entirely
+> and use the extension ID Chrome then assigns instead.
+
 ## Screenshots
 
 <p align="center">
@@ -62,7 +73,10 @@ through a third-party server.
 - **Filenames from a template** with 11 tokens for dates, senders, recipients,
   subject and thread ID
 - **HTML sanitising** that strips scripts, embeds, iframes, inline event
-  handlers and `javascript:` links from exported message bodies
+  handlers and `javascript:`/`vbscript:`/`data:text/html` links from exported
+  message bodies
+- **A confirmation before large exports** (50+ threads), since fetching,
+  rendering and zipping that many can take several minutes and real memory
 - **Progress tracking** with threads done, threads remaining and a time
   estimate
 - **Read-only access**: the only Gmail scope requested is
@@ -148,7 +162,8 @@ npm run build        # copies JSZip and Turndown from node_modules into vendor/
 3. Click **Export N thread(s)** in the toolbar.
 4. In the dialog, choose the formats, **ZIP archive** or **individual files**,
    and how to handle attachments.
-5. Click **Export ↓**.
+5. Click **Export ↓**. Exporting 50 or more threads at once shows a
+   confirmation first, since that many can take several minutes.
 
 Access tokens last about an hour. When one expires, the extension tries a silent
 refresh first and only shows the consent screen again if that fails.
@@ -194,7 +209,7 @@ Details → **Extension options**. Settings are stored with `chrome.storage.sync
 | Attachments | Save as separate files | Skip them, embed them in the EML files, or save them in an `attachments/` folder |
 | Filename template | `{date} - {sender_name} - {subject}` | See the tokens below |
 | Subfolder | *(none)* | A folder inside Downloads |
-| Sanitize HTML | On | Removes `<script>`, `<object>`, `<embed>` and `<iframe>`, `on*` handlers and `javascript:` URLs from HTML and PDF exports |
+| Sanitize HTML | On | Removes `<script>`, `<object>`, `<embed>`, `<iframe>` and `<noscript>`, `on*` handlers, `srcdoc`, and `javascript:`/`vbscript:`/`data:text/html` URLs from HTML and PDF exports |
 | Pretty-print JSON | On | Indents the JSON export |
 
 ### Filename template tokens
@@ -224,8 +239,7 @@ Tokens are filled in from the **first message** of each thread.
 | `storage` | Settings, and the access token for the current browser session |
 | `offscreen` | Building the ZIP and converting HTML to Markdown, which need a DOM |
 | `debugger` | Rendering PDFs with Chrome's `Page.printToPDF`. Chrome shows a "started debugging this browser" bar while a PDF is being made |
-| `activeTab` | Sending progress back to the Gmail tab |
-| `https://mail.google.com/*` | Adding the Export button to Gmail |
+| `https://mail.google.com/*` | Adding the Export button to Gmail; a host permission, not `activeTab`, since progress updates reach the tab in the background, not just after a user click |
 | `https://www.googleapis.com/*` | Calling the Gmail API |
 
 ## Architecture

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chrome extension (Manifest V3) that bulk exports Gmail threads to PDF, HTML, Markdown, JSON, and EML formats. Modeled after `google-chrome-extensions/webpage-archiver` in this repo.
+Chrome extension (Manifest V3) that bulk exports Gmail threads to PDF, HTML, Markdown, JSON, and EML formats. Modeled after the companion [Webpage Archiver](https://github.com/geoffmyers/webpage-archiver) extension.
 
 ## Key Technical Decisions
 
@@ -93,7 +93,7 @@ All vendored from `node_modules` via `build.js`:
 - `jszip` — ZIP creation in offscreen document
 - `turndown` + `turndown-plugin-gfm` — HTML→Markdown conversion in offscreen document
 
-No dependency on `webpage-archiver`'s vendor files — this extension vendors its own copies.
+No dependency on Webpage Archiver's vendor files — this extension vendors its own copies.
 
 ## Known Issues / Gotchas
 
@@ -105,7 +105,7 @@ No dependency on `webpage-archiver`'s vendor files — this extension vendors it
 
 - **PDF generation in threads with external images** — PDFs render live at print time. External images in emails may be blocked by Chrome's print process depending on settings.
 
-- **HTML sanitization** — when `htmlSanitize` is enabled, `<script>`, `<object>`, `<embed>`, and `<iframe>` tags are removed from HTML message bodies, inline event handlers (`on*` attributes) are stripped, and `javascript:` href/src values are cleared. Sanitization runs in the offscreen document via `DOMParser` and is applied to both HTML and PDF exports (since PDF reuses `generateThreadHTML`). The offscreen handler is `sanitize-html` in `src/offscreen/offscreen.js`; the service worker function is `sanitizeHtmlBody()` in `src/background/service-worker.js`.
+- **HTML sanitization** — when `htmlSanitize` is enabled, `<script>`, `<object>`, `<embed>`, `<iframe>` and `<noscript>` tags are removed from HTML message bodies, inline event handlers (`on*` attributes) and `srcdoc` are stripped, and `javascript:`/`vbscript:`/`data:text/html` URLs (including ones obfuscated with whitespace, e.g. `java\tscript:`) are cleared from `href`/`src`/`action`/`formaction`/`xlink:href`. Sanitization runs in the offscreen document via `DOMParser` and is applied to both HTML and PDF exports (since PDF reuses `generateThreadHTML`). The offscreen handler is `sanitize-html` in `src/offscreen/offscreen.js`, which calls the standalone `sanitizeHtmlFragment()` (pulled out of the message handler so tests can call the real function directly, the same pattern as webpage-archiver's `html-sanitizer.js`); the service worker function that invokes it is `sanitizeHtmlBody()` in `src/background/service-worker.js`.
 
 ## Google Cloud Project Setup
 
